@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MechCom Web - RTS Prototype</title>
+    <style>
+        :root {
+            --quadrumm-color: #00aaff;
+            --trionic-color: #00ff00;
+            --sphenix-color: #ff3333;
+            --ui-bg: rgba(20, 25, 30, 0.9);
+            --ui-border: #445566;
+            --text-main: #ffffff;
+            --text-dim: #8899aa;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* --- UI Overlay --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to canvas where needed */
+        }
+
+        .pointer-events-auto {
+            pointer-events: auto;
+        }
+
+        /* --- Top Bar --- */
+        #top-bar {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--ui-bg);
+            border: 2px solid var(--ui-border);
+            border-top: none;
+            padding: 5px 20px;
+            display: flex;
+            gap: 20px;
+            color: var(--text-main);
+            font-weight: bold;
+            font-size: 18px;
+            border-radius: 0 0 10px 10px;
+            z-index: 10;
+        }
+
+        /* --- Minimap (Top Right) --- */
+        #minimap-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 150px;
+            height: 150px;
+            background: #000;
+            border: 2px solid var(--quadrumm-color);
+            z-index: 10;
+        }
+        #minimap {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        /* --- Left Sidebar (Controls) --- */
+        #left-sidebar {
+            position: absolute;
+            top: 180px;
+            left: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .icon-btn {
+            width: 60px;
+            height: 60px;
+            background: var(--ui-bg);
+            border: 2px solid var(--quadrumm-color);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        .icon-btn:active { background: #334455; }
+        .icon-btn span { font-size: 10px; margin-top: 2px; }
+
+        /* --- Right Building Menu --- */
+        #right-menu {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 60px;
+            height: 60px;
+            z-index: 10;
+        }
+
+        /* --- Progress Indicators (Right Middle) --- */
+        #progress-area {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 9;
+        }
+        .progress-slot {
+            width: 60px;
+            height: 60px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #555;
+            position: relative;
+        }
+        .progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 5px;
+            background: #0f0;
+            width: 0%;
+        }
+
+        /* --- Modals (Generic) --- */
+        .modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--ui-bg);
+            border: 2px solid var(--ui-border);
+            color: white;
+            padding: 0;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            z-index: 20;
+            min-width: 400px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .modal-header {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--ui-border);
+        }
+        .modal-title { font-weight: bold; }
+        .close-btn { cursor: pointer; color: #ff5555; font-weight: bold; }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        /* --- Start Screen --- */
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #050505;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+        .company-card {
+            border: 2px solid #333;
+            padding: 20px;
+            margin: 10px;
+            width: 300px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .company-card:hover { transform: scale(1.05); border-color: white; }
+        .c-quadrumm { border-color: var(--quadrumm-color); }
+        .c-trionic { border-color: var(--trionic-color); }
+        .c-sphenix { border-color: var(--sphenix-color); }
+
+        /* --- Builder Grid --- */
+        .build-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .build-btn {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #555;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 12px;
+            text-align: center;
+            position: relative;
+        }
+        .build-btn:hover { background: rgba(255,255,255,0.1); border-color: #fff; }
+        .build-btn.disabled { opacity: 0.3; cursor: not-allowed; border-color: #333; }
+        .price-tag { color: #ffd700; font-size: 10px; margin-top: 2px; }
+        
+        /* --- Unit Designer (Sandwich) --- */
+        #unit-designer-body {
+            display: flex;
+            width: 600px;
+            height: 400px;
+        }
+        .designer-left { width: 70%; display: flex; flex-direction: column; border-right: 1px solid #555; }
+        .designer-right { width: 30%; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; }
+        
+        .part-selector {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+        }
+        .part-btn {
+            padding: 5px 10px;
+            border: 1px solid #555;
+            cursor: pointer;
+            font-size: 12px;
+            background: #222;
+        }
+        .part-btn.selected { background: var(--quadrumm-color); border-color: white; color: black; }
+        .part-btn.locked { opacity: 0.3; cursor: not-allowed; }
+
+        #mech-preview {
+            flex-grow: 1;
+            background: #1a1a1a;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* Simple CSS representation of Mech for preview */
+        .mech-vis { width: 60px; height: 60px; position: relative; }
+        .mech-base { width: 100%; height: 100%; position: absolute; border: 2px solid white; box-sizing: border-box; }
+        .mech-turret { width: 60%; height: 60%; position: absolute; top: 20%; left: 20%; background: white; }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; color: #ccc; }
+        .stat-val { color: white; font-weight: bold; }
+        
+        #build-unit-btn {
+            width: 100%;
+            padding: 15px;
+            background: var(--quadrumm-color);
+            color: black;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        #build-unit-btn:disabled { background: #555; cursor: not-allowed; }
+
+        /* --- Building Context Popup --- */
+        #building-popup {
+            width: 250px;
+        }
+        .action-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+        }
+        .action-btn {
+            width: 48%;
+            padding: 8px;
+            border: 1px solid #555;
+            background: #222;
+            color: white;
+            cursor: pointer;
+        }
+        .action-btn:hover { background: #333; }
+
+        /* Notification/Queue Overlay */
+        .queue-badge {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            background: red;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="start-screen" class="pointer-events-auto">
+    <h1>MECHCOM WEB</h1>
+    <h2>选择你的公司</h2>
+    <div style="display:flex;">
+        <div class="company-card c-quadrumm" onclick="startGame('Quadrumm')">
+            <h3>Quadrumm (蓝方)</h3>
+            <p>平衡型</p>
+            <p>特殊技术: 双足行走, 闪电武器</p>
+        </div>
+        <div class="company-card c-trionic" onclick="startGame('Trionic')">
+            <h3>Trionic (绿三角)</h3>
+            <p>技术型 (资源次之)</p>
+            <p>特殊技术: H型轮式, 等离子武器</p>
+        </div>
+        <div class="company-card c-sphenix" onclick="startGame('Sphenix')">
+            <h3>Sphenix (红圆)</h3>
+            <p>资源型 (技术次之)</p>
+            <p>特殊技术: H型履带, 激光武器</p>
+        </div>
+    </div>
+    <div style="margin-top: 20px;">
+        <label>AI难度: <select id="ai-difficulty"><option value="1">简单</option><option value="2">普通</option><option value="3">困难</option></select></label>
+    </div>
+</div>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-layer">
+        <!-- Top Bar -->
+        <div id="top-bar">
+            <div>💰 <span id="gold-display">0</span></div>
+            <div>🤖 <span id="unit-cap-display">0/5</span></div>
+        </div>
+
+        <!-- Minimap -->
+        <div id="minimap-container" class="pointer-events-auto">
+            <canvas id="minimap"></canvas>
+        </div>
+
+        <!-- Left Controls -->
+        <div id="left-sidebar">
+            <div class="icon-btn pointer-events-auto" onclick="togglePause()">⏸️<span>暂停</span></div>
+            <div class="icon-btn pointer-events-auto" id="queue-btn" onclick="toggleQueueMode()">🏳️<span>队列</span><div id="queue-count" class="queue-badge" style="display:none">0</div></div>
+            <div class="icon-btn pointer-events-auto" onclick="openUpgradeModal()">⬆️<span>升级</span></div>
+            <div class="icon-btn pointer-events-auto" onclick="openUnitDesigner()">🤖<span>单位</span></div>
+        </div>
+
+        <!-- Right Controls -->
+        <div id="right-menu" class="pointer-events-auto">
+            <div class="icon-btn" onclick="openBuildingMenu()" style="width:100%; height:100%;">🔨<span>建造</span></div>
+        </div>
+
+        <!-- Right Progress Area -->
+        <div id="progress-area">
+            <!-- Dynamic progress slots will be added here -->
+        </div>
+
+        <!-- Modals -->
+        
+        <!-- Building Construction Modal -->
+        <div id="building-modal" class="modal pointer-events-auto">
+            <div class="modal-header">
+                <span class="modal-title">建筑建造</span>
+                <span class="close-btn" onclick="closeModal('building-modal')">✖</span>
+            </div>
+            <div class="modal-body">
+                <div class="build-grid" id="building-grid">
+                    <!-- JS will populate -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Unit Designer Modal -->
+        <div id="unit-modal" class="modal pointer-events-auto" style="width: 800px;">
+            <div class="modal-header">
+                <span class="modal-title">单位组装</span>
+                <span class="close-btn" onclick="closeModal('unit-modal')">✖</span>
+            </div>
+            <div class="modal-body" id="unit-designer-body">
+                <div class="designer-left">
+                    <!-- Weapons -->
+                    <div class="part-selector" id="weapon-selector">
+                        <!-- JS populated -->
+                    </div>
+                    <!-- Preview Area -->
+                    <div id="mech-preview">
+                        <div style="text-align:center; color:#555;">[ 机甲预览 ]</div>
+                    </div>
+                    <!-- Chassis -->
+                    <div class="part-selector" id="chassis-selector">
+                        <!-- JS populated -->
+                    </div>
+                </div>
+                <div class="designer-right">
+                    <div id="mech-stats">
+                        <div class="stat-row"><span>攻击</span><span class="stat-val" id="stat-dmg">0</span></div>
+                        <div class="stat-row"><span>目标</span><span class="stat-val" id="stat-tgt">-</span></div>
+                        <div class="stat-row"><span>装甲</span><span class="stat-val" id="stat-armor">0</span></div>
+                        <div class="stat-row"><span>速度</span><span class="stat-val" id="stat-spd">0</span></div>
+                    </div>
+                    <button id="build-unit-btn" onclick="orderUnit()">建造 $<span id="stat-cost">0</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Building Interaction Popup -->
+        <div id="building-popup" class="modal pointer-events-auto">
+            <div class="modal-header">
+                <span class="modal-title" id="bp-title">建筑名</span>
+                <span class="close-btn" onclick="closeModal('building-popup')">✖</span>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <div style="margin-bottom: 10px;">生命值: <span id="bp-hp">100/100</span></div>
+                <div class="action-row">
+                    <button class="action-btn" onclick="sellSelectedBuilding()">♻️ 回收</button>
+                    <button class="action-btn" onclick="repairSelectedBuilding()">🔧 修复</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Upgrade Modal -->
+        <div id="upgrade-modal" class="modal pointer-events-auto">
+            <div class="modal-header">
+                <span class="modal-title">科技升级 (需武器库)</span>
+                <span class="close-btn" onclick="closeModal('upgrade-modal')">✖</span>
+            </div>
+            <div class="modal-body">
+                <div id="upgrade-list" style="display:flex; flex-direction:column; gap:10px;">
+                   <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+/**
+ * Game Configuration & Constants
+ */
+const CONFIG = {
+    COLORS: {
+        Quadrumm: '#00aaff',
+        Trionic: '#00ff00',
+        Sphenix: '#ff3333',
+        Neutral: '#666666',
+        Resource: '#ffd700'
+    },
+    BUILDINGS: {
+        'Refinery': { name: '采矿场', cost: 200, hp: 150, time: 15, req: [] },
+        'Factory': { name: '工厂', cost: 150, hp: 250, time: 15, req: [] },
+        'Depot': { name: '车厂', cost: 100, hp: 100, time: 15, req: [] },
+        'Armory': { name: '武器库', cost: 150, hp: 200, time: 15, req: [] },
+        'Turret': { name: '机枪塔', cost: 100, hp: 150, time: 15, req: ['Armory'] },
+        'TracksLab': { name: '履带实验室', cost: 200, hp: 200, time: 15, req: ['Factory'] },
+        'CannonLab': { name: '加农炮实验室', cost: 200, hp: 200, time: 15, req: ['Factory'] },
+        'AirLab': { name: '飞行实验室', cost: 250, hp: 250, time: 15, req: ['TracksLab'] },
+        'SpecVehicleLab': { name: '特殊载具室', cost: 300, hp: 250, time: 15, req: ['TracksLab'] },
+        'RocketLab': { name: '火箭弹实验室', cost: 250, hp: 250, time: 15, req: ['CannonLab'] },
+        'SpecWeaponLab': { name: '特殊武器室', cost: 300, hp: 250, time: 15, req: ['CannonLab'] },
+    },
+    WEAPONS: {
+        'Gatling': { name: '加特林', dmg: 5, target: 'Any', req: 'Factory' },
+        'Cannon': { name: '加农炮', dmg: 8, target: 'Gnd', req: 'CannonLab' },
+        'Rocket': { name: '火箭弹', dmg: 12, target: 'Air', req: 'RocketLab' },
+        'Laser': { name: '激光', dmg: 16, target: 'Gnd', req: 'SpecWeaponLab', company: 'Sphenix' },
+        'Lightning': { name: '闪电', dmg: 20, target: 'Gnd', req: 'SpecWeaponLab', company: 'Quadrumm' },
+        'Plasma': { name: '等离子', dmg: 12, target: 'Gnd', req: 'SpecWeaponLab', company: 'Trionic' }
+    },
+    CHASSIS: {
+        'Wheels': { name: '轮式', armor: 50, speed: 20, req: 'Factory' },
+        'Tracks': { name: '履带', armor: 70, speed: 15, req: 'TracksLab' },
+        'Air': { name: '飞行', armor: 65, speed: 25, req: 'AirLab' },
+        'H-Tracks': { name: 'H型履带', armor: 120, speed: 15, req: 'SpecVehicleLab', company: 'Sphenix' },
+        'H-Wheels': { name: 'H型轮式', armor: 80, speed: 20, req: 'SpecVehicleLab', company: 'Trionic' },
+        'Bipedal': { name: '双足', armor: 100, speed: 18, req: 'SpecVehicleLab', company: 'Quadrumm' }
+    }
+};
+
+/**
+ * Game State
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const minimapCanvas = document.getElementById('minimap');
+const mmCtx = minimapCanvas.getContext('2d');
+
+let gameState = {
+    running: false,
+    paused: false,
+    playerCompany: null,
+    gold: 1000, // Initial gold
+    camera: { x: 0, y: 0 },
+    width: 2000,
+    height: 2000,
+    mouse: { x: 0, y: 0, down: false, dragStart: null, lastClick: 0, lastClickPos: {x:0,y:0} },
+    selection: [],
+    buildings: [],
+    units: [],
+    projectiles: [],
+    particles: [],
+    zones: [],
+    tech: {},
+    queueMode: false,
+    unitCap: 5,
+    lastLoop: 0
+};
+
+// Player Tech State (built buildings)
+let playerTech = {
+    hasArmory: false,
+    hasFactory: false,
+    hasTracksLab: false,
+    hasCannonLab: false,
+    hasAirLab: false,
+    hasRocketLab: false,
+    hasSpecVehicleLab: false,
+    hasSpecWeaponLab: false,
+    upgrades: { dmg: 0, armor: 0 } // Level 0-3
+};
+
+/**
+ * Classes
+ */
+
+class Entity {
+    constructor(x, y, team) {
+        this.id = Math.random().toString(36).substr(2, 9);
+        this.x = x;
+        this.y = y;
+        this.team = team; // 'player' or 'enemy'
+        this.dead = false;
+        this.radius = 20;
+    }
+}
+
+class Zone extends Entity {
+    constructor(x, y, index) {
+        super(x, y, 'neutral');
+        this.radius = 150;
+        this.index = index;
+        this.owner = null; // 'player', 'enemy', null
+        this.captureProgress = 0; // 0 to 5000 (ms)
+        this.occupier = null; // who is currently capturing
+        this.resources = 12000;
+        this.lastMineTime = 0;
+    }
+
+    update(dt) {
+        // Capture Logic
+        let playerCount = 0;
+        let enemyCount = 0;
+        
+        // Count units in zone
+        gameState.units.forEach(u => {
+            if (!u.dead && Math.hypot(u.x - this.x, u.y - this.y) < this.radius) {
+                if (u.team === 'player') playerCount++;
+                else enemyCount++;
+            }
+        });
+
+        // Buildings also count as presence to prevent recapture if empty
+        gameState.buildings.forEach(b => {
+             if (!b.dead && b.zoneIndex === this.index) {
+                if (b.team === 'player') playerCount++;
+                else enemyCount++;
+             }
+        });
+
+        // Capture Logic
+        if (playerCount > 0 && enemyCount === 0) {
+            if (this.owner !== 'player') {
+                this.occupier = 'player';
+                this.captureProgress += dt;
+                if (this.captureProgress >= 5000) {
+                    this.owner = 'player';
+                    this.captureProgress = 0;
+                    createParticle(this.x, this.y, 'capture', CONFIG.COLORS.Quadrumm);
+                }
+            }
+        } else if (enemyCount > 0 && playerCount === 0) {
+            if (this.owner !== 'enemy') {
+                this.occupier = 'enemy';
+                this.captureProgress += dt;
+                if (this.captureProgress >= 5000) {
+                    this.owner = 'enemy';
+                    this.captureProgress = 0;
+                    createParticle(this.x, this.y, 'capture', CONFIG.COLORS.Sphenix);
+                }
+            }
+        } else {
+            this.captureProgress = Math.max(0, this.captureProgress - dt);
+        }
+
+        // Mining Logic handled by buildings
+    }
+
+    draw(ctx) {
+        // Draw Zone Circle
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = this.owner === 'player' ? CONFIG.COLORS[gameState.playerCompany] :
+                          (this.owner === 'enemy' ? '#ff0000' : '#444');
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Resource Node
+        ctx.fillStyle = CONFIG.COLORS.Resource;
+        ctx.beginPath();
+        ctx.rect(this.x - 10, this.y - 10, 20, 20);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText((this.resources/1000).toFixed(1)+'k', this.x, this.y + 25);
+
+        // Capture Progress
+        if (this.captureProgress > 0) {
+            ctx.fillStyle = this.occupier === 'player' ? '#0f0' : '#f00';
+            ctx.fillRect(this.x - 20, this.y - 30, 40 * (this.captureProgress / 5000), 5);
+        }
+    }
+}
+
+class Building extends Entity {
+    constructor(type, x, y, team, zoneIndex) {
+        super(x, y, team);
+        this.type = type;
+        this.stats = CONFIG.BUILDINGS[type];
+        this.hp = this.stats.hp;
+        this.maxHp = this.stats.hp;
+        this.zoneIndex = zoneIndex;
+        this.built = false;
+        this.buildProgress = 0; // ms
+        this.buildTime = this.stats.time * 1000;
+        this.width = 40;
+        this.height = 40;
+        this.isRepairing = false;
+        
+        // Mining timer
+        this.mineTimer = 0;
+        
+        // Production
+        this.queue = []; // Array of Units to build
+        this.currentProd = null;
+    }
+
+    update(dt) {
+        if (!this.built) {
+            this.buildProgress += dt;
+            if (this.buildProgress >= this.buildTime) {
+                this.built = true;
+                this.hp = this.maxHp;
+                updateTechTree();
+                if (this.type === 'Depot' && this.team === 'player') gameState.unitCap = Math.min(30, gameState.unitCap + 5);
+            } else {
+                this.hp = (this.buildProgress / this.buildTime) * this.maxHp;
+            }
+            return;
+        }
+
+        // Repair Logic
+        if (this.isRepairing && this.hp < this.maxHp) {
+            // Cost 1 gold per 1 hp, time 0.4s (400ms) per 1 hp
+            // Rate: 2.5 HP per second
+            let amount = (dt / 400);
+            let cost = amount; // 1:1
+            if (this.team === 'player' && gameState.gold >= cost) {
+                gameState.gold -= cost;
+                this.hp = Math.min(this.maxHp, this.hp + amount);
+                updateUI();
+            } else {
+                this.isRepairing = false; // Stop if no money or full
+            }
+        }
+
+        // Mining Logic
+        if (this.type === 'Refinery') {
+            this.mineTimer += dt;
+            if (this.mineTimer >= 10000) { // 10s
+                this.mineTimer = 0;
+                let zone = gameState.zones[this.zoneIndex];
+                if (zone && zone.resources > 0) {
+                    let amount = Math.min(50, zone.resources);
+                    zone.resources -= amount;
+                    if (this.team === 'player') gameState.gold += amount;
+                    else { /* AI gold logic */ }
+                    createParticle(this.x, this.y, 'text', '#ffd700', '+50');
+                    updateUI();
+                }
+            }
+        }
+
+        // Production Logic (Factory only)
+        if (this.queue.length > 0 && !this.currentProd) {
+            // Check Cap
+            let currentUnits = gameState.units.filter(u => u.team === this.team).length;
+            let cap = this.team === 'player' ? gameState.unitCap : 999;
+            
+            if (currentUnits < cap) {
+                this.currentProd = { unit: this.queue.shift(), progress: 0, total: 5000 }; // 5s build time per unit (simplified)
+            }
+        }
+
+        if (this.currentProd) {
+            this.currentProd.progress += dt;
+            if (this.currentProd.progress >= this.currentProd.total) {
+                // Spawn Unit
+                let u = this.currentProd.unit;
+                // Add Upgrade Bonuses
+                let bonusDmg = 0;
+                let bonusArmor = 0;
+                if(this.team === 'player') {
+                     // 3 levels logic
+                     // Simplified: Level * 10%
+                }
+
+                let unit = new Unit(u.weapon, u.chassis, this.x, this.y + 40, this.team);
+                gameState.units.push(unit);
+                this.currentProd = null;
+            }
+        }
+        
+        // Turret Logic
+        if (this.type === 'Turret') {
+            let range = 200;
+            let target = null;
+            let minDist = range;
+            gameState.units.forEach(u => {
+                if (u.team !== this.team && !u.dead) {
+                    let d = Math.hypot(u.x - this.x, u.y - this.y);
+                    if (d < minDist) { minDist = d; target = u; }
+                }
+            });
+            
+            if (target) {
+                // Turret fire rate
+                if (!this.lastFire) this.lastFire = 0;
+                if (Date.now() - this.lastFire > 500) {
+                    this.lastFire = Date.now();
+                    gameState.projectiles.push(new Projectile(this.x, this.y, target, 'bullet', 10));
+                }
+            }
+        }
+    }
+
+    draw(ctx) {
+        let color = this.team === 'player' ? CONFIG.COLORS[gameState.playerCompany] : '#ff0000';
+        
+        ctx.fillStyle = '#222';
+        ctx.fillRect(this.x - 20, this.y - 20, 40, 40);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = color;
+        ctx.strokeRect(this.x - 20, this.y - 20, 40, 40);
+
+        // Icon based on type
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        let icon = '';
+        if(this.type === 'Refinery') icon = '⛏️';
+        else if(this.type === 'Factory') icon = '🏭';
+        else if(this.type === 'Depot') icon = '📦';
+        else if(this.type === 'Armory') icon = '🛡️';
+        else if(this.type === 'Turret') icon = '🔫';
+        else if(this.type.includes('Lab')) icon = '🔬';
+        
+        ctx.fillText(icon, this.x, this.y + 6);
+
+        // Health Bar
+        if (this.hp < this.maxHp) {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(this.x - 20, this.y - 30, 40, 4);
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(this.x - 20, this.y - 30, 40 * (this.hp / this.maxHp), 4);
+        }
+
+        // Build Progress
+        if (!this.built) {
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(this.x - 20, this.y + 25, 40 * (this.buildProgress / this.buildTime), 4);
+        }
+        
+        // Production Progress
+        if (this.currentProd) {
+            ctx.fillStyle = 'yellow';
+            ctx.fillRect(this.x - 20, this.y + 30, 40 * (this.currentProd.progress / this.currentProd.total), 4);
+        }
+    }
+}
+
+class Unit extends Entity {
+    constructor(weaponKey, chassisKey, x, y, team) {
+        super(x, y, team);
+        this.weaponKey = weaponKey;
+        this.chassisKey = chassisKey;
+        
+        let wStats = CONFIG.WEAPONS[weaponKey];
+        let cStats = CONFIG.CHASSIS[chassisKey];
+
+        // Apply Upgrades if player
+        let dmgMult = 1;
+        let armorMult = 1;
+        if (team === 'player') {
+            dmgMult += playerTech.upgrades.dmg * 0.2; // 20% per level
+            armorMult += playerTech.upgrades.armor * 0.2;
+        }
+
+        this.damage = wStats.dmg * dmgMult;
+        this.targetType = wStats.target; // Any, Gnd, Air
+        this.maxHp = cStats.armor * armorMult;
+        this.hp = this.maxHp;
+        this.speed = cStats.speed * 2.5; // Adjusted for game feel
+        this.range = 150;
+        this.reloadTime = 1000;
+        this.lastFire = 0;
+
+        this.target = null; // Entity to attack
+        this.dest = null; // {x, y} to move to
+        this.path = []; // Simplified
+        this.state = 'idle'; // idle, move, attack
+        
+        this.isAir = chassisKey === 'Air';
+    }
+
+    update(dt) {
+        // AI: Auto acquire targets
+        if (!this.target || this.target.dead) {
+            this.target = null;
+            let bestDist = this.range;
+            // Find closest enemy
+            let potentialTargets = [...gameState.units, ...gameState.buildings];
+            for (let e of potentialTargets) {
+                if (e.team !== this.team && !e.dead) {
+                    // Check target type
+                    let valid = false;
+                    if (this.targetType === 'Any') valid = true;
+                    if (this.targetType === 'Gnd' && !e.isAir) valid = true;
+                    if (this.targetType === 'Air' && e.isAir) valid = true;
+                    // Buildings are ground
+                    if (e instanceof Building && this.targetType !== 'Air') valid = true;
+
+                    if (valid) {
+                        let d = Math.hypot(e.x - this.x, e.y - this.y);
+                        if (d < bestDist * 1.5) { // Acquire range slightly larger
+                            this.target = e;
+                            bestDist = d;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Behavior Logic
+        if (this.target) {
+            let d = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            if (d <= this.range) {
+                // Attack
+                if (Date.now() - this.lastFire > this.reloadTime) {
+                    this.lastFire = Date.now();
+                    gameState.projectiles.push(new Projectile(this.x, this.y, this.target, this.weaponKey, this.damage));
+                }
+                // Stop moving if attacking unless commanded to move specifically (not implemented here for simplicity)
+                if(!this.dest) this.dest = null;
+            } else {
+                // Chase
+                 if (!this.dest) {
+                    let angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                    this.x += Math.cos(angle) * this.speed * (dt/1000);
+                    this.y += Math.sin(angle) * this.speed * (dt/1000);
+                 }
+            }
+        }
+
+        // Movement
+        if (this.dest) {
+            let dx = this.dest.x - this.x;
+            let dy = this.dest.y - this.y;
+            let dist = Math.hypot(dx, dy);
+            
+            if (dist < 5) {
+                this.dest = null;
+            } else {
+                // Steering / Separation (very basic)
+                let angle = Math.atan2(dy, dx);
+                
+                // Separation from other units
+                gameState.units.forEach(u => {
+                    if (u !== this && !u.isAir) {
+                        let ud = Math.hypot(u.x - this.x, u.y - this.y);
+                        if (ud < 30) {
+                            angle += (Math.random() - 0.5); // Jiggle
+                        }
+                    }
+                });
+
+                this.x += Math.cos(angle) * this.speed * (dt/1000);
+                this.y += Math.sin(angle) * this.speed * (dt/1000);
+            }
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        let color = this.team === 'player' ? CONFIG.COLORS[gameState.playerCompany] : '#ff0000';
+        
+        // Selection Ring
+        if (gameState.selection.includes(this)) {
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI*2);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        // Body
+        ctx.fillStyle = color;
+        // Shape based on chassis
+        if (this.chassisKey.includes('Wheel')) ctx.fillRect(-8, -8, 16, 16);
+        else if (this.chassisKey.includes('Track')) ctx.fillRect(-10, -10, 20, 20);
+        else if (this.chassisKey === 'Air') {
+            ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(10, 10); ctx.lineTo(-10, 10); ctx.fill();
+        } else {
+            ctx.beginPath(); ctx.arc(0,0,8,0,Math.PI*2); ctx.fill(); // Bipedal
+        }
+
+        // Weapon
+        ctx.fillStyle = '#ccc';
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        // Barrel direction (aim at target or move dir)
+        let aimAngle = 0;
+        if (this.target) aimAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+        else if (this.dest) aimAngle = Math.atan2(this.dest.y - this.y, this.dest.x - this.x);
+        
+        ctx.rotate(aimAngle);
+        ctx.fillRect(0, -2, 12, 4);
+
+        ctx.restore();
+
+        // Health Bar
+        ctx.fillStyle = 'red';
+        ctx.fillRect(this.x - 10, this.y - 15, 20, 3);
+        ctx.fillStyle = '#0f0';
+        ctx.fillRect(this.x - 10, this.y - 15, 20 * (this.hp / this.maxHp), 3);
+    }
+}
+
+class Projectile {
+    constructor(x, y, target, type, damage) {
+        this.x = x;
+        this.y = y;
+        this.target = target;
+        this.type = type; // Gatling, Cannon, Rocket, Laser, Lightning, Plasma
+        this.damage = damage;
+        this.speed = 300;
+        this.dead = false;
+        
+        if (type === 'Laser' || type === 'Lightning') this.speed = 1000;
+        if (type === 'Rocket') this.speed = 150;
+    }
+
+    update(dt) {
+        if (this.target.dead) { this.dead = true; return; }
+
+        let angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+        let move = this.speed * (dt / 1000);
+        let dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+
+        if (dist <= move) {
+            this.target.hp -= this.damage;
+            if (this.target.hp <= 0) {
+                this.target.dead = true;
+                this.target.hp = 0;
+                createParticle(this.target.x, this.target.y, 'explosion', 'orange');
+            }
+            this.dead = true;
+            createParticle(this.target.x, this.target.y, 'hit', 'yellow');
+        } else {
+            this.x += Math.cos(angle) * move;
+            this.y += Math.sin(angle) * move;
+        }
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = 'yellow';
+        if(this.type === 'Rocket') ctx.fillStyle = 'orange';
+        if(this.type === 'Plasma') ctx.fillStyle = '#0f0';
+        if(this.type === 'Laser') {
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.target.x, this.target.y);
+            ctx.stroke();
+            return; // Laser is instant visual
+        }
+        
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 3, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+function createParticle(x, y, type, color) {
+    gameState.particles.push({x, y, type, color, life: 1.0});
+}
+
+/**
+ * Core Logic
+ */
+
+function startGame(company) {
+    gameState.playerCompany = company;
+    document.getElementById('start-screen').style.display = 'none';
+    
+    // Init Map
+    initMap();
+    
+    gameState.running = true;
+    gameState.lastLoop = Date.now();
+    requestAnimationFrame(gameLoop);
+
+    // Initial Unit
+    gameState.units.push(new Unit('Gatling', 'Wheels', 150, 150, 'player'));
+    
+    // Initial Camera
+    gameState.camera.x = 0;
+    gameState.camera.y = 0;
+}
+
+function initMap() {
+    // Create Zones
+    gameState.zones.push(new Zone(200, 200, 0)); // Start Player
+    gameState.zones[0].owner = 'player';
+    
+    gameState.zones.push(new Zone(1800, 1800, 1)); // Start Enemy
+    gameState.zones[1].owner = 'enemy';
+
+    gameState.zones.push(new Zone(1000, 1000, 2)); // Center
+    gameState.zones.push(new Zone(200, 1800, 3));
+    gameState.zones.push(new Zone(1800, 200, 4));
+
+    // Give player start building
+    gameState.buildings.push(new Building('Refinery', 250, 150, 'player', 0));
+    gameState.buildings[0].built = true;
+
+    // AI start
+    gameState.buildings.push(new Building('Refinery', 1750, 1850, 'enemy', 1));
+    gameState.buildings.push(new Building('Factory', 1850, 1750, 'enemy', 1));
+    gameState.buildings.forEach(b => b.built = true);
+}
+
+function gameLoop() {
+    if (!gameState.running) return;
+    
+    let now = Date.now();
+    let dt = now - gameState.lastLoop;
+    gameState.lastLoop = now;
+
+    if (!gameState.paused) {
+        updateGame(dt);
+    }
+    
+    drawGame();
+    drawMinimap();
+    
+    requestAnimationFrame(gameLoop);
+}
+
+function updateGame(dt) {
+    // Entities
+    gameState.units.forEach(u => u.update(dt));
+    gameState.buildings.forEach(b => b.update(dt));
+    gameState.projectiles.forEach(p => p.update(dt));
+    gameState.zones.forEach(z => z.update(dt));
+
+    // Cleanup
+    gameState.units = gameState.units.filter(u => !u.dead);
+    gameState.buildings = gameState.buildings.filter(b => !b.dead);
+    gameState.projectiles = gameState.projectiles.filter(p => !p.dead);
+    gameState.particles = gameState.particles.filter(p => {
+        p.life -= dt/1000;
+        return p.life > 0;
+    });
+
+    // AI Logic (Simple ticker)
+    if (Math.random() < 0.01) runAI();
+
+    // UI Update (Gold)
+    document.getElementById('gold-display').innerText = Math.floor(gameState.gold);
+    let pUnits = gameState.units.filter(u => u.team === 'player').length;
+    document.getElementById('unit-cap-display').innerText = `${pUnits}/${gameState.unitCap}`;
+}
+
+function runAI() {
+    let aiBuildings = gameState.buildings.filter(b => b.team === 'enemy');
+    let aiUnits = gameState.units.filter(u => u.team === 'enemy');
+    
+    // Build Units if has factory
+    let factory = aiBuildings.find(b => b.type === 'Factory' && b.built);
+    if (factory && aiUnits.length < 10) {
+        if (!factory.currentProd) {
+            factory.queue.push({weapon:'Gatling', chassis:'Wheels'});
+        }
+    }
+    
+    // Attack
+    if (aiUnits.length > 5) {
+        let target = gameState.buildings.find(b => b.team === 'player') || gameState.units.find(u => u.team === 'player');
+        if (target) {
+            aiUnits.forEach(u => u.dest = {x: target.x, y: target.y});
+        }
+    }
+}
+
+function drawGame() {
+    // Clear
+    ctx.fillStyle = '#2b2b2b';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    // Camera transform
+    ctx.translate(-gameState.camera.x, -gameState.camera.y);
+
+    // Draw Map Grid/Terrain
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(let i=0; i<gameState.width; i+=100) { ctx.moveTo(i,0); ctx.lineTo(i, gameState.height); }
+    for(let i=0; i<gameState.height; i+=100) { ctx.moveTo(0,i); ctx.lineTo(gameState.width, i); }
+    ctx.stroke();
+
+    // Draw Zones
+    gameState.zones.forEach(z => z.draw(ctx));
+
+    // Draw Buildings
+    gameState.buildings.forEach(b => b.draw(ctx));
+
+    // Draw Units
+    gameState.units.forEach(u => u.draw(ctx));
+
+    // Draw Projectiles
+    gameState.projectiles.forEach(p => p.draw(ctx));
+
+    // Draw Particles
+    gameState.particles.forEach(p => {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        if(p.type === 'text') {
+            ctx.font = '12px Arial';
+            ctx.fillText(p.text || '+50', p.x, p.y - (1-p.life)*20);
+        } else {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 5 + (1-p.life)*10, 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    });
+
+    // Draw Selection Box
+    if (gameState.mouse.down && gameState.mouse.dragStart && !gameState.mouse.panning) {
+        let mx = gameState.mouse.x + gameState.camera.x;
+        let my = gameState.mouse.y + gameState.camera.y;
+        let sx = gameState.mouse.dragStart.x + gameState.camera.x;
+        let sy = gameState.mouse.dragStart.y + gameState.camera.y;
+        
+        ctx.strokeStyle = '#0f0';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx, sy, mx - sx, my - sy);
+    }
+
+    ctx.restore();
+}
+
+function drawMinimap() {
+    // Background
+    mmCtx.fillStyle = '#000';
+    mmCtx.fillRect(0, 0, 150, 150);
+
+    let scaleX = 150 / gameState.width;
+    let scaleY = 150 / gameState.height;
+
+    // Zones
+    gameState.zones.forEach(z => {
+        mmCtx.fillStyle = z.owner === 'player' ? CONFIG.COLORS[gameState.playerCompany] :
+                          (z.owner === 'enemy' ? '#f00' : '#444');
+        mmCtx.beginPath();
+        mmCtx.arc(z.x * scaleX, z.y * scaleY, z.radius * scaleX, 0, Math.PI*2);
+        mmCtx.fill();
+        // Resource
+        mmCtx.fillStyle = 'yellow';
+        mmCtx.fillRect(z.x * scaleX - 2, z.y * scaleY - 2, 4, 4);
+    });
+
+    // Units (Small dots)
+    gameState.units.forEach(u => {
+        mmCtx.fillStyle = u.team === 'player' ? CONFIG.COLORS[gameState.playerCompany] : '#f00';
+        mmCtx.fillRect(u.x * scaleX, u.y * scaleY, 2, 2);
+    });
+
+    // Viewport Rect
+    mmCtx.strokeStyle = 'white';
+    mmCtx.lineWidth = 1;
+    mmCtx.strokeRect(gameState.camera.x * scaleX, gameState.camera.y * scaleY,
+                     canvas.width * scaleX, canvas.height * scaleY);
+}
+
+/**
+ * Input Handling
+ */
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    // Minimap logic handled by CSS/Fixed size
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Mouse Inputs
+canvas.addEventListener('mousedown', e => {
+    let rect = canvas.getBoundingClientRect();
+    let mx = e.clientX - rect.left;
+    let my = e.clientY - rect.top;
+    let worldX = mx + gameState.camera.x;
+    let worldY = my + gameState.camera.y;
+
+    if (e.button === 2) { // Right Click (Move/Attack)
+        // Check if clicked enemy
+        let clickedEnemy = null;
+        gameState.units.forEach(u => {
+             if (u.team !== 'player' && Math.hypot(u.x - worldX, u.y - worldY) < 20) clickedEnemy = u;
+        });
+        
+        gameState.selection.forEach(u => {
+            if (clickedEnemy) u.target = clickedEnemy;
+            else {
+                u.dest = {x: worldX, y: worldY};
+                u.target = null;
+            }
+        });
+        return;
+    }
+
+    // Left Click
+    gameState.mouse.x = mx;
+    gameState.mouse.y = my;
+    gameState.mouse.down = true;
+    gameState.mouse.dragStart = {x: mx, y: my}; // screen coords
+    gameState.mouse.panning = false; // logic for panning vs selecting
+
+    // Double click logic
+    let now = Date.now();
+    if (now - gameState.mouse.lastClick < 300) {
+        // Double click detected
+        let clickedUnit = null;
+        gameState.units.forEach(u => {
+             if (Math.hypot(u.x - worldX, u.y - worldY) < 25 && u.team === 'player') clickedUnit = u;
+        });
+
+        if (clickedUnit) {
+            // Select all same type nearby (viewport)
+            gameState.selection = gameState.units.filter(u =>
+                u.team === 'player' &&
+                u.weaponKey === clickedUnit.weaponKey &&
+                u.chassisKey === clickedUnit.chassisKey &&
+                u.x > gameState.camera.x && u.x < gameState.camera.x + canvas.width &&
+                u.y > gameState.camera.y && u.y < gameState.camera.y + canvas.height
+            );
+            return;
+        }
+    }
+    gameState.mouse.lastClick = now;
+
+    // Building Click?
+    let clickedB = null;
+    gameState.buildings.forEach(b => {
+        if (Math.hypot(b.x - worldX, b.y - worldY) < 25) clickedB = b;
+    });
+
+    if (clickedB) {
+        if (clickedB.team === 'player') openBuildingPopup(clickedB);
+        // Don't deselect units if clicking building maybe? keep it simple
+        gameState.selection = [];
+    } else {
+        closeModal('building-popup');
+        // Start Drag Select or Pan logic
+        // If clicking on empty space, prepare for drag select
+    }
+});
+
+canvas.addEventListener('mousemove', e => {
+    let rect = canvas.getBoundingClientRect();
+    let mx = e.clientX - rect.left;
+    let my = e.clientY - rect.top;
+    
+    if (gameState.mouse.down) {
+        // Drag Map Logic (if Middle mouse or special key, but requirements say drag map.
+        // Usually RTS uses edge pan or right click drag.
+        // Req: "鼠标拖动和方向键控制地图移动" implies Left Drag on background?
+        // But Left Drag is also box select. Let's assume Box Select for Left, Arrow Keys for Map.
+        // Wait, prompt says: "没有框选功能" (NO BOX SELECT).
+        // Prompt says: "鼠标拖动...控制地图移动".
+        // OK, Left Drag = Pan Map. Click = Select Unit.
+        
+        let dx = mx - gameState.mouse.x;
+        let dy = my - gameState.mouse.y;
+        gameState.camera.x -= dx;
+        gameState.camera.y -= dy;
+        gameState.mouse.panning = true;
+    }
+    
+    gameState.mouse.x = mx;
+    gameState.mouse.y = my;
+});
+
+canvas.addEventListener('mouseup', e => {
+    gameState.mouse.down = false;
+    
+    if (!gameState.mouse.panning && e.button === 0) {
+        // Single Click Select
+        let worldX = gameState.mouse.x + gameState.camera.x;
+        let worldY = gameState.mouse.y + gameState.camera.y;
+        
+        let clickedUnit = null;
+        gameState.units.forEach(u => {
+             if (Math.hypot(u.x - worldX, u.y - worldY) < 20 && u.team === 'player') clickedUnit = u;
+        });
+
+        if (gameState.queueMode) {
+             if(clickedUnit) {
+                 if(gameState.selection.includes(clickedUnit)) {
+                     // remove
+                 } else {
+                     gameState.selection.push(clickedUnit);
+                 }
+             }
+        } else {
+            gameState.selection = clickedUnit ? [clickedUnit] : [];
+        }
+    }
+    
+    gameState.mouse.dragStart = null;
+});
+
+// Minimap Click
+minimapCanvas.addEventListener('mousedown', e => {
+    let rect = minimapCanvas.getBoundingClientRect();
+    let mx = e.clientX - rect.left;
+    let my = e.clientY - rect.top;
+    
+    let targetX = (mx / 150) * gameState.width;
+    let targetY = (my / 150) * gameState.height;
+    
+    gameState.camera.x = targetX - canvas.width/2;
+    gameState.camera.y = targetY - canvas.height/2;
+});
+
+// Keyboard Pan
+window.addEventListener('keydown', e => {
+    let speed = 20;
+    if(e.key === 'ArrowUp') gameState.camera.y -= speed;
+    if(e.key === 'ArrowDown') gameState.camera.y += speed;
+    if(e.key === 'ArrowLeft') gameState.camera.x -= speed;
+    if(e.key === 'ArrowRight') gameState.camera.x += speed;
+});
+
+/**
+ * UI Functions
+ */
+
+function updateUI() {
+    // Refresh building menu states
+    if (document.getElementById('building-modal').style.display === 'flex') {
+        renderBuildingGrid();
+    }
+    // Refresh Unit states
+    if (document.getElementById('unit-modal').style.display === 'flex') {
+        updateUnitDesignerCost();
+    }
+    
+    // Popup
+    if (gameState.selectedBuilding) {
+        document.getElementById('bp-hp').innerText = `${Math.floor(gameState.selectedBuilding.hp)}/${gameState.selectedBuilding.maxHp}`;
+        if(gameState.selectedBuilding.dead) closeModal('building-popup');
+    }
+
+    // Queue count
+    let qbtn = document.getElementById('queue-count');
+    if (gameState.queueMode) {
+        qbtn.style.display = 'flex';
+        qbtn.innerText = gameState.selection.length;
+    } else {
+        qbtn.style.display = 'none';
+    }
+}
+
+function updateTechTree() {
+    let b = gameState.buildings.filter(x => x.team === 'player' && x.built);
+    playerTech.hasFactory = b.some(x => x.type === 'Factory');
+    playerTech.hasArmory = b.some(x => x.type === 'Armory');
+    playerTech.hasTracksLab = b.some(x => x.type === 'TracksLab');
+    playerTech.hasCannonLab = b.some(x => x.type === 'CannonLab');
+    playerTech.hasAirLab = b.some(x => x.type === 'AirLab');
+    playerTech.hasRocketLab = b.some(x => x.type === 'RocketLab');
+    playerTech.hasSpecVehicleLab = b.some(x => x.type === 'SpecVehicleLab');
+    playerTech.hasSpecWeaponLab = b.some(x => x.type === 'SpecWeaponLab');
+}
+
+function openBuildingMenu() {
+    renderBuildingGrid();
+    document.getElementById('building-modal').style.display = 'flex';
+}
+
+function renderBuildingGrid() {
+    let grid = document.getElementById('building-grid');
+    grid.innerHTML = '';
+    
+    // Check occupied zones
+    let occupiedZone = gameState.zones.find(z => z.owner === 'player');
+    
+    Object.keys(CONFIG.BUILDINGS).forEach(key => {
+        let bInfo = CONFIG.BUILDINGS[key];
+        let canBuild = true;
+        
+        // Requirements check
+        bInfo.req.forEach(r => {
+            if (r === 'Factory' && !playerTech.hasFactory) canBuild = false;
+            if (r === 'TracksLab' && !playerTech.hasTracksLab) canBuild = false;
+            if (r === 'CannonLab' && !playerTech.hasCannonLab) canBuild = false;
+            if (r === 'Armory' && !playerTech.hasArmory) canBuild = false;
+        });
+
+        // Money check
+        if (gameState.gold < bInfo.cost) canBuild = false;
+
+        let el = document.createElement('div');
+        el.className = `build-btn ${canBuild ? '' : 'disabled'}`;
+        el.innerHTML = `<div>${bInfo.name}</div><div class="price-tag">$${bInfo.cost}</div>`;
+        el.onclick = () => {
+            if (canBuild) {
+                startBuildPlacement(key);
+                closeModal('building-modal');
+            }
+        };
+        grid.appendChild(el);
+    });
+}
+
+function startBuildPlacement(type) {
+    // Auto place in player's captured zone for simplicity or nearest zone
+    // Requirement says: "占领后才能在该区域建造建筑"
+    // Find zone with player owner
+    let zones = gameState.zones.filter(z => z.owner === 'player');
+    if (zones.length === 0) {
+        alert("未占领任何区域");
+        return;
+    }
+    
+    // Find a spot in the first valid zone
+    let z = zones[0]; // Logic could be improved to find zone under mouse
+    
+    // Simple Placement: Random spot in radius that isn't colliding
+    let angle = Math.random() * Math.PI * 2;
+    let dist = Math.random() * (z.radius - 30);
+    let bx = z.x + Math.cos(angle) * dist;
+    let by = z.y + Math.sin(angle) * dist;
+    
+    gameState.gold -= CONFIG.BUILDINGS[type].cost;
+    gameState.buildings.push(new Building(type, bx, by, 'player', z.index));
+}
+
+function openUnitDesigner() {
+    if (!playerTech.hasFactory) {
+        alert("需要工厂");
+        return;
+    }
+    
+    document.getElementById('unit-modal').style.display = 'flex';
+    
+    // Populate Selectors
+    let wContainer = document.getElementById('weapon-selector');
+    wContainer.innerHTML = '';
+    Object.keys(CONFIG.WEAPONS).forEach(k => {
+        let w = CONFIG.WEAPONS[k];
+        let locked = false;
+        if (w.req === 'CannonLab' && !playerTech.hasCannonLab) locked = true;
+        if (w.req === 'RocketLab' && !playerTech.hasRocketLab) locked = true;
+        if (w.req === 'SpecWeaponLab' && !playerTech.hasSpecWeaponLab) locked = true;
+        if (w.company && w.company !== gameState.playerCompany) locked = true; // Tech exclusive
+
+        let btn = document.createElement('div');
+        btn.className = `part-btn ${locked ? 'locked' : ''}`;
+        btn.innerText = w.name;
+        if(!locked) btn.onclick = () => selectPart('weapon', k);
+        if(k === selectedUnitDesign.weapon) btn.classList.add('selected');
+        wContainer.appendChild(btn);
+    });
+
+    let cContainer = document.getElementById('chassis-selector');
+    cContainer.innerHTML = '';
+    Object.keys(CONFIG.CHASSIS).forEach(k => {
+        let c = CONFIG.CHASSIS[k];
+        let locked = false;
+        if (c.req === 'TracksLab' && !playerTech.hasTracksLab) locked = true;
+        if (c.req === 'AirLab' && !playerTech.hasAirLab) locked = true;
+        if (c.req === 'SpecVehicleLab' && !playerTech.hasSpecVehicleLab) locked = true;
+        if (c.company && c.company !== gameState.playerCompany) locked = true;
+
+        let btn = document.createElement('div');
+        btn.className = `part-btn ${locked ? 'locked' : ''}`;
+        btn.innerText = c.name;
+        if(!locked) btn.onclick = () => selectPart('chassis', k);
+        if(k === selectedUnitDesign.chassis) btn.classList.add('selected');
+        cContainer.appendChild(btn);
+    });
+
+    updateUnitDesignerCost();
+}
+
+let selectedUnitDesign = { weapon: 'Gatling', chassis: 'Wheels' };
+
+function selectPart(type, key) {
+    selectedUnitDesign[type] = key;
+    openUnitDesigner(); // Re-render to update selected classes
+}
+
+function updateUnitDesignerCost() {
+    let w = CONFIG.WEAPONS[selectedUnitDesign.weapon];
+    let c = CONFIG.CHASSIS[selectedUnitDesign.chassis];
+    
+    // Price logic per requirements
+    // Base prices roughly: Gatling 0, Cannon 25, Rocket 25, SpecWeapon 50?
+    // Wheels 50, Tracks 75, Air 100, Spec 100
+    
+    // Reconstructing prices from prompt examples:
+    // Gatling(Base) + Wheels(Base) = 50.
+    // Gatling + Tracks = 75 (+25).
+    // Cannon + Wheels = 75 (+25).
+    // Cannon + Tracks = 100 (+25+25).
+    // Special Weapon + Special Chassis = 150. (+50 + 50 + base 50)
+    
+    let base = 50;
+    let wCost = 0;
+    let cCost = 0;
+    
+    if(selectedUnitDesign.weapon !== 'Gatling') wCost = 25;
+    if(['Laser','Lightning','Plasma'].includes(selectedUnitDesign.weapon)) wCost = 50;
+
+    if(selectedUnitDesign.chassis === 'Tracks') cCost = 25;
+    if(selectedUnitDesign.chassis === 'Air') cCost = 50;
+    if(['H-Tracks','H-Wheels','Bipedal'].includes(selectedUnitDesign.chassis)) cCost = 50;
+
+    let total = base + wCost + cCost;
+    
+    document.getElementById('stat-cost').innerText = total;
+    document.getElementById('stat-dmg').innerText = w.dmg;
+    document.getElementById('stat-tgt').innerText = w.target;
+    document.getElementById('stat-armor').innerText = c.armor;
+    document.getElementById('stat-spd').innerText = c.speed;
+    
+    let btn = document.getElementById('build-unit-btn');
+    if (gameState.gold < total) btn.disabled = true;
+    else btn.disabled = false;
+}
+
+function orderUnit() {
+    let cost = parseInt(document.getElementById('stat-cost').innerText);
+    if (gameState.gold >= cost) {
+        // Find Factory
+        let factories = gameState.buildings.filter(b => b.type === 'Factory' && b.team === 'player' && b.built);
+        if (factories.length > 0) {
+            // Pick factory with shortest queue
+            factories.sort((a,b) => a.queue.length - b.queue.length);
+            let f = factories[0];
+            
+            f.queue.push({
+                weapon: selectedUnitDesign.weapon,
+                chassis: selectedUnitDesign.chassis
+            });
+            gameState.gold -= cost;
+            closeModal('unit-modal');
+        } else {
+            alert("没有可用的工厂");
+        }
+    }
+}
+
+function toggleQueueMode() {
+    gameState.queueMode = !gameState.queueMode;
+    if (!gameState.queueMode) {
+        // Clear selection if not in queue mode
+        // gameState.selection = [];
+    }
+    updateUI();
+}
+
+function openBuildingPopup(building) {
+    gameState.selectedBuilding = building;
+    document.getElementById('bp-title').innerText = CONFIG.BUILDINGS[building.type].name;
+    document.getElementById('building-popup').style.display = 'block';
+    updateUI();
+}
+
+function sellSelectedBuilding() {
+    if (gameState.selectedBuilding) {
+        let b = gameState.selectedBuilding;
+        b.dead = true;
+        gameState.gold += CONFIG.BUILDINGS[b.type].cost * 0.6;
+        closeModal('building-popup');
+        gameState.selectedBuilding = null;
+        if(b.type === 'Depot') gameState.unitCap = Math.max(5, gameState.unitCap - 5);
+        updateTechTree();
+    }
+}
+
+function repairSelectedBuilding() {
+    if (gameState.selectedBuilding) {
+        gameState.selectedBuilding.isRepairing = true;
+    }
+}
+
+function openUpgradeModal() {
+    if (!playerTech.hasArmory) { alert("需要武器库"); return; }
+    document.getElementById('upgrade-modal').style.display = 'flex';
+    let list = document.getElementById('upgrade-list');
+    list.innerHTML = '';
+    
+    // Dmg Upgrade
+    let lvlD = playerTech.upgrades.dmg;
+    let costD = (lvlD+1) * 100;
+    let divD = document.createElement('div');
+    divD.innerHTML = `<button style="width:100%; padding:10px;">武器伤害 Lv${lvlD} -> Lv${lvlD+1} ($${costD})</button>`;
+    divD.onclick = () => {
+        if(gameState.gold >= costD && lvlD < 3) {
+            gameState.gold -= costD;
+            playerTech.upgrades.dmg++;
+            openUpgradeModal(); // refresh
+        }
+    };
+    if (lvlD >= 3) divD.innerHTML = "<button disabled style='width:100%;'>武器伤害 (已满级)</button>";
+    list.appendChild(divD);
+
+    // Armor Upgrade
+    let lvlA = playerTech.upgrades.armor;
+    let costA = (lvlA+1) * 100;
+    let divA = document.createElement('div');
+    divA.innerHTML = `<button style="width:100%; padding:10px;">平台装甲 Lv${lvlA} -> Lv${lvlA+1} ($${costA})</button>`;
+    divA.onclick = () => {
+        if(gameState.gold >= costA && lvlA < 3) {
+            gameState.gold -= costA;
+            playerTech.upgrades.armor++;
+            openUpgradeModal();
+        }
+    };
+    if (lvlA >= 3) divA.innerHTML = "<button disabled style='width:100%;'>平台装甲 (已满级)</button>";
+    list.appendChild(divA);
+}
+
+function togglePause() {
+    gameState.paused = !gameState.paused;
+}
+
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+    if(id === 'building-popup') {
+        if(gameState.selectedBuilding) gameState.selectedBuilding.isRepairing = false; // Stop auto repair trigger if closed? Optional
+        gameState.selectedBuilding = null;
+    }
+}
+
+</script>
+</body>
+</html>
