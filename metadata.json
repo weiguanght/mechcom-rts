@@ -1,0 +1,5 @@
+{
+  "name": "MechWar Strategy",
+  "description": "A 2D Real-Time Strategy game inspired by Mechcom 3. Build bases, design mechs, and conquer zones.",
+  "requestFramePermissions": []
+}
